@@ -1,46 +1,59 @@
-# Import necessary libraries
+import streamlit as st
+import pickle
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-from flask import Flask, request, jsonify
+# try:
+#     model = pickle.load(open('selected_features.pkl', 'rb'))
+# except Exception as e:
+#     st.error(f"Error loading the model: {e}")
+# Load the trained model
+model = pickle.load(open('features.pkl', 'rb'))
 
-# Load the dataset
-dataset_url = "https://www.narcis.nl/dataset/RecordID/oai%3Aeasy.dans.knaw.nl%3Aeasy-dataset%3A191591"
-# Download the dataset manually and load it using pandas
-# df = pd.read_csv("path_to_downloaded_dataset.csv")
+def predict_accident(Sex_of_driver, Type_of_vehicle, Types_of_Junction, Road_surface_conditions, Type_of_collision, Casualty_class, Casualty_severity,Cause_of_accident,Driving_experience_encoded):
+    # Create input array
+    features = np.array([Sex_of_driver, Type_of_vehicle, Types_of_Junction, Road_surface_conditions, Type_of_collision, Casualty_class, Casualty_severity,Cause_of_accident,Driving_experience_encoded]).reshape(1, -1)
 
-# For demonstration purposes, let's create a dummy DataFrame
-# Replace this with actual dataset loading code
-df = pd.DataFrame({'Type_of_collision': [1, 2, 3, 4, 5],
-                   'Cause_of_accident': [0.1, 0.2, 0.3, 0.4, 0.5],
-                   'Accident_severity': [0, 1, 0, 1, 1]})
+    # Predict
+    prediction = model.predict(features)
 
-# Preprocess the dataset
-X = df.drop('Accident_severity', axis=1)
-y = df['Accident_severity']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    return prediction[0]
 
-# Train a simple RandomForestClassifier
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
+def main():
+    st.title('Road Accident Prediction')
+    st.write('Fill out the form below to predict the Accident.')
 
-# Evaluate the model
-y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print("Accuracy:", accuracy)
+    # Input form
+    with st.form(key='accident_form'):
+        Sex_of_driver = st.radio('Sex_of_driver', ['male','female'])
+        Type_of_vehicle=st.selectbox('Type_of_vehicle',['Automobile','Public (> 45 seats)','Lorry (41?100Q)','Long lorry','Lorry (11?40Q)','Public (13?45 seats)','Public (12 seats)','Taxi','Pick up upto 10Q','Stationwagen','Ridden horse','Other','Bajaj','Turbo','Motorcycle'])
+        Types_of_Junction = st.selectbox('Types_of_Junction', ['No junction','Y Shape','Crossing','O Shape','Other','Unknown'])
+        Type_of_collision = st.selectbox('Type_of_collision',['Collision with roadside-parked vehicles','Vehicle with vehicle collision','Collision with roadside objects','Collision with animals','Rollover','Fall from vehicles','Collision with pedestrians','Other'])
+        Casualty_class = st.selectbox('Casualty_class',['Driver or rider','Pedestrian','Passenger','na'])
+        Casualty_severity = st.number_input('Casualty_severity', min_value=0, max_value=3, step=1)
+        Road_surface_conditions = st.selectbox('Road_surface_conditions', ['Dry','Wet or damp','Snow'])
+        Cause_of_accident=st.selectbox('Cause_of_accident',['Moving Backward','Overtaking','Changing lane to the left','Changing lane to the right','Overloading','No priority to vehicle','No priority to pedestrian','No distancing','Getting off the vehicle improperly','Improper parking','Other'])
+        Driving_experience_encoded = st.number_input('Driving_experience_encoded', min_value=0, max_value=3, step=1)
 
-# Initialize Flask app
-app = Flask(__name__)
+        submit_button = st.form_submit_button(label='Predict')
 
-# Define endpoint for model prediction
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.json
-    features = data['Type_of_collision','Cause_of_accident','Accident_severity']
-    features = [features['Type_of_collision'], features['Cause_of_accident']]  # Assuming feature1 and feature2 are present
-    prediction = model.predict([features])[0]
-    return jsonify({'prediction': prediction})
+       # Convert categorical features to numeric
+    Type_of_vehicle = 1 if Type_of_vehicle == ['Automobile','Public (> 45 seats)','Lorry (41?100Q)','Long lorry','Lorry (11?40Q)''Public (13?45 seats)','Public (12 seats)'] else 0
+    Types_of_Junction = 1 if Types_of_Junction == ['Y Shape','Crossing','O Shape'] else 0
+    Type_of_collision = 1 if Type_of_collision == ['Collision with roadside-parked vehicles','Vehicle with vehicle collision','Collision with roadside objects'] else 0
+    Sex_of_driver = 1 if Sex_of_driver == 'Male' else 0
+    Casualty_class = 1 if Casualty_class == ['Driver or rider','Pedestrian','Passenger'] else 0
+    Road_surface_conditions = 1 if Road_surface_conditions == 'Snow' else 0
+    Cause_of_accident=1 if Cause_of_accident==['Moving Backward','Overtaking','Changing lane to the left','Changing lane to the right','Overloading'] else 0
 
-if __name__ == '_main_':
-    app.run(debug=True)
+    # Perform prediction when form is submitted
+    if submit_button:
+        prediction = predict_accident(Sex_of_driver, Type_of_vehicle, Types_of_Junction, Road_surface_conditions, Type_of_collision, Casualty_class, Casualty_severity,Cause_of_accident,Driving_experience_encoded)
+        if prediction == 1:
+            st.error('Serious Injury')
+        else:
+            st.success('Slight Injury')
+
+if __name__ == '__main__':
+    main()
+
